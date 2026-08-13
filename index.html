@@ -454,6 +454,7 @@
     filtroContatti: "tutte",
     mostraPromemoria: true,
     assistente: { comando: "", risposta: "" },
+    attivitaInModifica: null,
   };
 
   // Rimuove dal cestino gli elementi eliminati da più di 30 giorni
@@ -1129,6 +1130,7 @@
           '<input type="text" id="campo-attivita" placeholder="Nuova attività" />' +
           '<select id="campo-categoria-attivita">' + opzioniCategorie("altro") + '</select>' +
           '<select id="campo-urgenza-attivita">' + opzioniUrgenza("piu-avanti") + '</select>' +
+          '<input type="date" id="campo-scadenza-attivita" title="Scadenza (facoltativa)" />' +
           '<button class="bottone-primario" id="btn-aggiungi-attivita">➕ Aggiungi</button>' +
         '</div>' +
         renderFiltri(stato.filtroAttivita, "filtro-attivita");
@@ -1148,12 +1150,26 @@
           '<span class="conteggio-lieve">(' + gruppo.length + ')</span></div>' +
           '<ul class="lista-pulita">';
         gruppo.forEach(function (a) {
+          if (stato.attivitaInModifica === a.id) {
+            html +=
+              '<li class="riga-modifica">' +
+                '<input type="text" id="modifica-nome-attivita-' + a.id + '" value="' + escapeHtml(a.nome) + '" />' +
+                '<select id="modifica-categoria-attivita-' + a.id + '">' + opzioniCategorie(a.categoria || "altro") + '</select>' +
+                '<select id="modifica-urgenza-attivita-' + a.id + '">' + opzioniUrgenza(a.urgenza || "piu-avanti") + '</select>' +
+                '<input type="date" id="modifica-scadenza-attivita-' + a.id + '" value="' + (a.scadenza || "") + '" />' +
+                '<button class="bottone-primario" data-salva-modifica-attivita="' + a.id + '">💾 Salva</button>' +
+                '<button class="bottone-icona" data-annulla-modifica-attivita="' + a.id + '" title="Annulla">✖️</button>' +
+              '</li>';
+            return;
+          }
           html +=
             '<li>' +
               '<button class="bottone-icona" data-toggle-attivita="' + a.id + '" title="Segna come fatta">⬜</button>' +
               '<span class="pallino-urgenza ' + livello.classe + '"></span>' +
               '<span class="testo-riga">' + escapeHtml(a.nome) + '</span>' +
               chipCategoria(a.categoria) +
+              badgeScadenza(a.scadenza) +
+              '<button class="bottone-icona" data-modifica-attivita="' + a.id + '" title="Modifica">✏️</button>' +
               '<button class="bottone-icona" data-elimina-attivita="' + a.id + '" title="Elimina">🗑️</button>' +
             '</li>';
         });
@@ -1956,9 +1972,41 @@
     var testo = campo.value.trim();
     var categoria = document.getElementById("campo-categoria-attivita").value;
     var urgenza = document.getElementById("campo-urgenza-attivita").value;
+    var campoScadenza = document.getElementById("campo-scadenza-attivita");
+    var scadenza = campoScadenza ? campoScadenza.value : "";
     if (!testo) return;
-    stato.attivita.push({ id: Date.now(), nome: testo, completata: false, categoria: categoria, urgenza: urgenza });
+    stato.attivita.push({ id: Date.now(), nome: testo, completata: false, categoria: categoria, urgenza: urgenza, scadenza: scadenza });
     scrivi("agenda-attivita", stato.attivita);
+    render();
+  }
+
+  function iniziaModificaAttivita(id) {
+    stato.attivitaInModifica = id;
+    render();
+  }
+
+  function annullaModificaAttivita() {
+    stato.attivitaInModifica = null;
+    render();
+  }
+
+  function salvaModificaAttivita(id) {
+    var nome = document.getElementById("modifica-nome-attivita-" + id);
+    var categoria = document.getElementById("modifica-categoria-attivita-" + id);
+    var urgenza = document.getElementById("modifica-urgenza-attivita-" + id);
+    var scadenza = document.getElementById("modifica-scadenza-attivita-" + id);
+    if (!nome || !nome.value.trim()) return;
+    stato.attivita = stato.attivita.map(function (a) {
+      if (a.id !== id) return a;
+      return Object.assign({}, a, {
+        nome: nome.value.trim(),
+        categoria: categoria ? categoria.value : a.categoria,
+        urgenza: urgenza ? urgenza.value : a.urgenza,
+        scadenza: scadenza ? scadenza.value : "",
+      });
+    });
+    scrivi("agenda-attivita", stato.attivita);
+    stato.attivitaInModifica = null;
     render();
   }
 
@@ -2357,6 +2405,19 @@
       el.addEventListener("click", function () {
         eliminaAttivita(Number(el.getAttribute("data-elimina-attivita")));
       });
+    });
+    radice.querySelectorAll("[data-modifica-attivita]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        iniziaModificaAttivita(Number(el.getAttribute("data-modifica-attivita")));
+      });
+    });
+    radice.querySelectorAll("[data-salva-modifica-attivita]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        salvaModificaAttivita(Number(el.getAttribute("data-salva-modifica-attivita")));
+      });
+    });
+    radice.querySelectorAll("[data-annulla-modifica-attivita]").forEach(function (el) {
+      el.addEventListener("click", annullaModificaAttivita);
     });
 
     var btnDiario = document.getElementById("btn-salva-diario");
