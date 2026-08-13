@@ -721,19 +721,26 @@
     return html;
   }
 
-  function rispostaAggiungiAppuntamento(restoTesto) {
-    var estratto = estraiData(restoTesto);
-    if (!estratto) {
-      return '<h3>📆 Appuntamento</h3><p class="testo-secondario">Non ho capito quando: aggiungi una data al comando (es. "domani", "venerdì" o "20/08").</p>';
+  function rispostaAggiungiAppuntamento(restoTesto, dataManualeISO) {
+    var dataISO, descrizione;
+    if (dataManualeISO) {
+      dataISO = dataManualeISO;
+      descrizione = restoTesto.replace(/\s{2,}/g, " ").trim() || "Appuntamento";
+    } else {
+      var estratto = estraiData(restoTesto);
+      if (!estratto) {
+        return '<h3>📆 Appuntamento</h3><p class="testo-secondario">Non ho capito quando: aggiungi una data al comando (es. "domani", "venerdì" o "20/08"), oppure scegli la data dal calendarietto accanto al campo di testo.</p>';
+      }
+      dataISO = estratto.dataISO;
+      descrizione = restoTesto.replace(new RegExp(escapeRegExp(estratto.match), "i"), "").replace(/\s{2,}/g, " ").trim();
+      descrizione = descrizione.replace(/^(il|per|di)\s+/i, "").replace(/\s+(il|per|di)$/i, "").trim() || "Appuntamento";
     }
-    var descrizione = restoTesto.replace(new RegExp(escapeRegExp(estratto.match), "i"), "").replace(/\s{2,}/g, " ").trim();
-    descrizione = descrizione.replace(/^(il|per|di)\s+/i, "").replace(/\s+(il|per|di)$/i, "").trim() || "Appuntamento";
-    stato.appuntamenti.push({ id: Date.now(), data: estratto.dataISO, testo: descrizione, ricorrenza: "nessuna" });
+    stato.appuntamenti.push({ id: Date.now(), data: dataISO, testo: descrizione, ricorrenza: "nessuna" });
     scrivi("agenda-appuntamenti", stato.appuntamenti);
-    return '<h3>📆 Appuntamento aggiunto</h3><p class="testo-secondario">"' + escapeHtml(descrizione) + '" il ' + formattaData(estratto.dataISO, { weekday: "long", day: "numeric", month: "long" }) + ".</p>";
+    return '<h3>📆 Appuntamento aggiunto</h3><p class="testo-secondario">"' + escapeHtml(descrizione) + '" il ' + formattaData(dataISO, { weekday: "long", day: "numeric", month: "long" }) + ".</p>";
   }
 
-  function interpretaComando(testoOriginale) {
+  function interpretaComando(testoOriginale, dataManualeISO) {
     var testo = (testoOriginale || "").trim().replace(/[.!?]+$/, "").trim();
     if (!testo) return '<p class="testo-secondario">Scrivi un comando per iniziare.</p>';
     var t = testo.toLowerCase();
@@ -743,20 +750,22 @@
     if (/^cerca\s+/.test(t)) return rispostaCerca(testo.replace(/^cerca\s+/i, "").trim());
     var patternAggiungi = /^(ok\s+)?(aggiungi|aggiungimi|crea|creami|fissa|fissami|prendi|prendimi|segna|segnami|metti|mettimi|inserisci|inseriscimi)\s+(un\s+|una\s+|l['’]\s*)?(nuovo\s+|nuova\s+)?appuntamento\b\s*/i;
     if (patternAggiungi.test(t)) {
-      return rispostaAggiungiAppuntamento(testo.replace(patternAggiungi, "").trim());
+      return rispostaAggiungiAppuntamento(testo.replace(patternAggiungi, "").trim(), dataManualeISO);
     }
     var patternRicorda = /^(ok\s+)?(ricordami|ricordamelo|promemoria|fammi\s+ricordare)\b\s*(di\s+)?/i;
     if (patternRicorda.test(t)) {
-      return rispostaAggiungiAppuntamento(testo.replace(patternRicorda, "").trim());
+      return rispostaAggiungiAppuntamento(testo.replace(patternRicorda, "").trim(), dataManualeISO);
     }
     return '<p class="testo-secondario">Non ho capito il comando. Prova con: "riepilogo oggi", "riepilogo settimana", "priorità", "cerca [parola]", "aggiungi appuntamento [testo] [quando]", "ricordami di [testo] [quando]".</p>';
   }
 
   function eseguiComandoAssistente(testoRapido) {
     var campo = document.getElementById("campo-comando-assistente");
+    var campoData = document.getElementById("campo-data-assistente");
     var testo = testoRapido !== undefined ? testoRapido : (campo ? campo.value : "");
+    var dataManualeISO = testoRapido === undefined && campoData ? campoData.value : "";
     stato.assistente.comando = testo;
-    stato.assistente.risposta = interpretaComando(testo);
+    stato.assistente.risposta = interpretaComando(testo, dataManualeISO);
     render();
   }
 
@@ -764,10 +773,14 @@
     var html =
       '<div class="scheda">' +
         "<h1>🤖 Assistente</h1>" +
-        '<p class="testo-secondario">Scrivi un comando oppure usa i pulsanti rapidi. Esempi: "riepilogo oggi", "cerca dentista", "aggiungi appuntamento dentista domani", "ricordami di chiamare Mario venerdì".</p>' +
+        '<p class="testo-secondario">Scrivi un comando oppure usa i pulsanti rapidi. Esempi: "riepilogo oggi", "cerca dentista", "aggiungi appuntamento dentista domani", "ricordami di chiamare Mario venerdì". Se la data detta non viene capita, scegline una dal calendarietto qui sotto.</p>' +
         '<div class="riga-modulo">' +
           '<input type="text" id="campo-comando-assistente" placeholder="Scrivi un comando..." value="' + escapeHtml(stato.assistente.comando) + '" />' +
           '<button class="bottone-primario" id="btn-esegui-assistente">Esegui</button>' +
+        "</div>" +
+        '<div class="riga-modulo">' +
+          '<label for="campo-data-assistente" class="testo-secondario" style="margin-right:8px;">📅 Data (facoltativa, se il comando non la capisce):</label>' +
+          '<input type="date" id="campo-data-assistente" />' +
         "</div>" +
         '<div class="riga-filtri">' +
           '<button class="filtro-chip" data-comando-rapido="riepilogo oggi">📋 Oggi</button>' +
