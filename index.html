@@ -756,31 +756,57 @@
     if (patternRicorda.test(t)) {
       return rispostaAggiungiAppuntamento(testo.replace(patternRicorda, "").trim(), dataManualeISO);
     }
+    // Se non è stato riconosciuto nessun comando ma è stata scelta una data dal calendarietto,
+    // trattiamo comunque il testo come un nuovo appuntamento in quella data.
+    if (dataManualeISO) {
+      return rispostaAggiungiAppuntamento(testo, dataManualeISO);
+    }
     return '<p class="testo-secondario">Non ho capito il comando. Prova con: "riepilogo oggi", "riepilogo settimana", "priorità", "cerca [parola]", "aggiungi appuntamento [testo] [quando]", "ricordami di [testo] [quando]".</p>';
   }
 
   function eseguiComandoAssistente(testoRapido) {
     var campo = document.getElementById("campo-comando-assistente");
-    var campoData = document.getElementById("campo-data-assistente");
     var testo = testoRapido !== undefined ? testoRapido : (campo ? campo.value : "");
-    var dataManualeISO = testoRapido === undefined && campoData ? campoData.value : "";
     stato.assistente.comando = testo;
-    stato.assistente.risposta = interpretaComando(testo, dataManualeISO);
+    stato.assistente.risposta = interpretaComando(testo);
+    render();
+  }
+
+  function aggiungiAppuntamentoSemplice() {
+    var campoTesto = document.getElementById("campo-nuovo-testo");
+    var campoData = document.getElementById("campo-nuovo-data");
+    var testo = campoTesto ? campoTesto.value.trim() : "";
+    var dataISO = campoData ? campoData.value : "";
+    if (!testo) {
+      stato.assistente.risposta = '<h3>📆 Nuovo appuntamento</h3><p class="testo-secondario">Scrivi prima cosa devi fare.</p>';
+      render();
+      return;
+    }
+    stato.assistente.risposta = rispostaAggiungiAppuntamento(testo, dataISO || undefined);
+    if (campoTesto) campoTesto.value = "";
+    if (campoData) campoData.value = "";
     render();
   }
 
   function renderAssistente() {
     var html =
       '<div class="scheda">' +
-        "<h1>🤖 Assistente</h1>" +
-        '<p class="testo-secondario">Scrivi un comando oppure usa i pulsanti rapidi. Esempi: "riepilogo oggi", "cerca dentista", "aggiungi appuntamento dentista domani", "ricordami di chiamare Mario venerdì". Se la data detta non viene capita, scegline una dal calendarietto qui sotto.</p>' +
+        "<h1>➕ Nuovo appuntamento</h1>" +
+        '<p class="testo-secondario">Scrivi cosa devi fare e scegli il giorno, poi tocca Aggiungi.</p>' +
+        '<div class="riga-modulo">' +
+          '<input type="text" id="campo-nuovo-testo" placeholder="Cosa devi fare? (es. dentista)" />' +
+        "</div>" +
+        '<div class="riga-modulo">' +
+          '<input type="date" id="campo-nuovo-data" />' +
+          '<button class="bottone-primario" id="btn-aggiungi-semplice">➕ Aggiungi</button>' +
+        "</div>" +
+      "</div>" +
+      '<div class="scheda">' +
+        "<h1>🤖 Altri comandi</h1>" +
+        '<p class="testo-secondario">Usa i pulsanti, oppure scrivi ad esempio "cerca dentista".</p>' +
         '<div class="riga-modulo">' +
           '<input type="text" id="campo-comando-assistente" placeholder="Scrivi un comando..." value="' + escapeHtml(stato.assistente.comando) + '" />' +
           '<button class="bottone-primario" id="btn-esegui-assistente">Esegui</button>' +
-        "</div>" +
-        '<div class="riga-modulo">' +
-          '<label for="campo-data-assistente" class="testo-secondario" style="margin-right:8px;">📅 Data (facoltativa, se il comando non la capisce):</label>' +
-          '<input type="date" id="campo-data-assistente" />' +
         "</div>" +
         '<div class="riga-filtri">' +
           '<button class="filtro-chip" data-comando-rapido="riepilogo oggi">📋 Oggi</button>' +
@@ -2192,6 +2218,17 @@
     });
     var btnSvuotaCestino = document.getElementById("btn-svuota-cestino");
     if (btnSvuotaCestino) btnSvuotaCestino.addEventListener("click", svuotaCestino);
+
+    var btnAggiungiSemplice = document.getElementById("btn-aggiungi-semplice");
+    if (btnAggiungiSemplice) {
+      btnAggiungiSemplice.addEventListener("click", aggiungiAppuntamentoSemplice);
+      var campoNuovoTesto = document.getElementById("campo-nuovo-testo");
+      if (campoNuovoTesto) {
+        campoNuovoTesto.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") { e.preventDefault(); aggiungiAppuntamentoSemplice(); }
+        });
+      }
+    }
 
     var btnEseguiAssistente = document.getElementById("btn-esegui-assistente");
     if (btnEseguiAssistente) {
